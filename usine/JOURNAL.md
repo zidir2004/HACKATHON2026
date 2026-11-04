@@ -1,10 +1,10 @@
 # Journal — Hackathon M2 DS4SC : prédiction de sinistres (Gini)
 
 ## 0. Résumé (toujours à jour)
-- Meilleur score CV : **0,2834 ± 0,0076** (E09, mélange LightGBM + XGBoost + CatBoost sur v1) — à annoncer ~0,281–0,283 — score serveur : —
-- Modèle actuel : E09 = moyenne des rangs à poids égaux de E02 (LightGBM), E07 (XGBoost GPU), E08 (CatBoost GPU), données v1 (sans ps_calc_*), remis à l'échelle des probabilités
-- Livrable valide en place : `submissions/2_303.csv` (revu, déposable) ; repli : `2_302.csv`
-- Prochaine piste : score plafonné (~0,283). Décision utilisateur : dernier essai modèle différent ou gel + soutenance ; robustesse graine 7 à relancer
+- Meilleur score CV : **0,2853 ± 0,0074** (E33f) — à annoncer ~0,284–0,285 — score serveur : —
+- Modèle actuel : E33f = rangs égaux de 4 modèles : LightGBM Jahrer + one-hot (E30), XGBoost GPU (E07), CatBoost GPU (E08), réseau de neurones sur autoencodeur débruiteur (E32c, 3 graines)
+- Livrable valide en place : **`submissions/2_306.csv`** (revu, déposable, à privilégier) ; replis : 2_305 (E34), 2_303 (E09)
+- Prochaine piste : carte blanche jusqu'au gel de 15h — 2e autoencodeur (bruit 7 %), MLP direct, variantes LightGBM pour la diversité
 - Échéance : **16h00 (Paris) fermeture des soumissions** ; gel à 15h ; check-ups 11h et 14h
 
 ## 1. Compréhension du sujet
@@ -71,16 +71,35 @@ Rapport : `rapports/01_data-engineer_audit.md`, tableaux `rapports/audit_*.csv`,
 
 **Lecture** : les retouches de données n'apportent presque rien aux arbres (ils gèrent déjà -1 et redondances). Le seul gain net vient du **mélange de 3 algorithmes différents** : leurs erreurs ne sont pas les mêmes, la moyenne lisse le bruit (gain sur les 5 folds, et le mélange bat le meilleur des 3 modèles dans chaque fold).
 
+### Pistes inspirées de la solution 1re place Kaggle (M. Jahrer) — 11h05–12h55
+Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeur débruiteur (DAE), calc retirées, one-hot des _cat, moyenne simple.
+| Exp | Changement | Gini CV | Δ apparié | Verdict |
+|---|---|---|---|---|
+| E29 | LightGBM paramètres Jahrer, 1400 arbres fixes | 0,2788 | −0,0030 vs E13 (0/5) | rejeté (1400 arbres = trop pour 357k lignes) |
+| E30b / E32A | + one-hot des _cat (colonnes d'origine gardées), confirmé 3 graines | 0,2805 | +0,0011 (4/5) | garde |
+| E35/E36 | 1050 arbres (mise à l'échelle) | 0,2821 | +0,0016 (5/5) | garde, = E13 |
+| E34 | Mélange E32A + E07 + E08 | 0,2843 | +0,0008 vs E09 (5/5) | garde → 2_305 |
+| E32 | Réseau 4500-1000-1000 sur activations DAE (early stopping) | 0,2711 | — | seul plus faible, mais très différent (corr. rangs 0,87) |
+| E32b/E32c | 6 époques fixes, 3 graines | 0,2752 | +0,0030 vs E32 | membre retenu |
+| **E33f** | **Mélange E30 + E07 + E08 + E32c** | **0,2853 ± 0,0074** | **+0,0019 vs E09, +0,0011 vs E34 (5/5)** | **garde → 2_306** |
+| E40/E41 | DAE ré-entraîné 38 min de plus (1320 époques) | 0,2851 | −0,0002 vs E33f (1/5) | rejeté (DAE déjà convergé) |
+
+**Lecture** : un modèle *plus faible seul* (réseau 0,275) mais *différent* (il apprend une autre représentation des données) améliore le mélange : c'est la diversité qui paie, pas la force individuelle. Incident : collision d'identifiants E32/E33 entre les deux pistes parallèles → lignes de la piste A renommées E32A/E33A ; le reviewer a vérifié qu'aucun livrable n'utilise un fichier écrasé.
+
 ## 6. Revues du reviewer
 - 10h14 — Revue E02–E16 / 2_303.csv (`rapports/91_reviewer_revue_E09.md`) : **déposable**. Pas de fuite (E05 bien en folds avec K-fold interne ; mêmes folds pour les 3 membres). Gain du mélange réel sur la graine 42 (5/5). Réserves : robustesse sur une autre graine en cours (job `91_revue_E09_s7`) ; gain E02 non significatif (à présenter comme simplification).
 - 10h03 — Lead-tech : le mélange sortait des rangs (moyenne 0,5) ; ajout de `src/07_rangs_vers_proba.py` qui conserve l'ordre exact (même Gini) et donne des valeurs de probabilité (moyenne 0,0364), pour respecter « prédiction en probabilité ».
 - 09h29 — Revue E01 / 2_302.csv (`rapports/90_reviewer_revue_E01.md`) : **déposable**. Format OK (vérifié par script indépendant), pas de fuite, résultats reproduits à l'identique. Mineur : fins de ligne CRLF (à passer en LF). Important : CV légèrement optimiste (early stopping + graine favorable) ; juger les petits gains fold par fold.
+
+- 12h45 — Revue pistes A/B (`rapports/92_reviewer_revue_pistesAB.md`) : **2_305 et 2_306 déposables, 2_306 à privilégier**. Gain E33f réel (bootstrap 90 % : +0,0004 à +0,0016 vs E34). DAE sur train+test sans cible : pas de fuite, pas d'optimisme. Annoncer ~0,284–0,285 (correction de sélection).
 
 ## 7. Livrables / soumissions
 | Heure | Expérience | Gini CV | Score serveur | Fichier |
 |---|---|---|---|---|
 | 09h29 | E01 | 0,2787 | à venir | `submissions/2_302.csv` |
 | 10h14 | E09 | 0,2834 | à venir | `submissions/2_303.csv` |
+| 11h40 | E34 | 0,2843 | — | `submissions/2_305.csv` |
+| 12h45 | E33f | 0,2853 | à venir | `submissions/2_306.csv` |
 
 - Feature engineering v4 (10h20, `rapports/07_data-cleaner_features_v4.md`) : v1 + 12 variables non supervisées (comptages de catégorielles, interactions ps_reg_01×ps_reg_02, ps_car_13×ps_reg_03, ps_car_13/ps_car_12, ps_ind_03 & ps_ind_15, entiers reconstruits, somme des binaires, comptage du croisement ps_ind_05_cat×ps_car_04_cat). Plus prometteuse : `ind05_x_car04_count` (Gini univarié 0,124 vs 0,043/0,075 pour ses sources). À tester (E19+).
 
@@ -110,3 +129,8 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 10h38 — `2_304.csv` (E17) prête mais quasi identique à 2_303 (corrélation de rang 0,9998) : pas d'intérêt à la déposer.
 - 10h40 — Lanceur v2 actif. ML engineer (v4, E19–E28) et analyste (distributions, plan de soutenance) lancés en parallèle.
 - 10h58 — v4 : rien ne passe (E27 faux positif démasqué par le contrôle multi-graines). Analyste : figures `10_*`, `soutenance/plan.md`, `soutenance/questions_reponses.md`.
+- 11h02 — Sauvegarde GitHub (https://github.com/zidir2004/HACKATHON2026, sans les données). PyTorch GPU installé.
+- 11h05 — Piste Kaggle (Jahrer) fournie par l'utilisateur : piste A (LightGBM + one-hot, CPU) et piste B (DAE + réseau, GPU) en parallèle.
+- 12h05 — E33f = 0,2853. Collision d'IDs corrigée (E32A/E33A).
+- 12h45 — Revue : 2_306 déposable. 12h55 — reprise DAE rejetée (E41).
+- 12h57 — L'utilisateur donne carte blanche pour maximiser le score jusqu'au gel.

@@ -12,3 +12,4 @@ usine/logs/
 usine/queue/
 *.bak
 __pycache__/
+catboost_info/

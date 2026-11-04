@@ -118,6 +118,28 @@ CONFIGS.update({
 })
 
 
+# --- Piste A : LightGBM de la solution 1re place Kaggle Porto Seguro (M. Jahrer), paramètres publiés.
+#     Nombre d'arbres FIXE (1400, pas d'early stopping -> pas de biais optimiste sur le fold rapporté). ---
+LGB_JAHRER = dict(
+    objective="binary", metric="auc", boosting="gbdt", learning_rate=0.01, max_bin=255, num_leaves=31,
+    min_data_in_leaf=1500, feature_fraction=0.7, bagging_freq=1, bagging_fraction=0.7,
+    lambda_l1=1.0, lambda_l2=1.0, n_jobs=8, seed=U.SEED, verbose=-1,
+)
+LGB_J = dict(modele="lightgbm", params=LGB_JAHRER, n_max=1400, early_stop=None)
+CONFIGS.update({
+    "E29": dict(version="v1", ref="E13", **LGB_J,
+                changement="LightGBM paramètres Jahrer (1re place Porto Seguro), 1400 arbres fixes, _cat numériques"),
+    "E30": dict(version="v1", ref="E29", **LGB_J, onehot="remplace",
+                changement="E29 + one-hot des 14 _cat (-1 = modalité à part), colonnes _cat d'origine RETIRÉES"),
+    "E30b": dict(version="v1", ref="E29", **LGB_J, onehot="ajoute",
+                 changement="E29 + one-hot des 14 _cat (-1 = modalité à part), colonnes _cat d'origine GARDÉES"),
+    # 1400 arbres réglés par Jahrer pour 476k lignes d'entraînement/fold ; nous en avons 357k -> mise à
+    # l'échelle A PRIORI (non choisie sur la validation) : 1400 x 357/476 ≈ 1050.
+    "E35": dict(version="v1", ref="E30b", **dict(LGB_J, n_max=1050), onehot="ajoute",
+                changement="E30b avec 1050 arbres au lieu de 1400 (mise à l'échelle a priori sur la taille du train)"),
+})
+
+
 def ajouter_configs_v4(familles, exp_lgb="E23", exp_xgb="E24x", exp_cb="E24c"):
     """Union de familles retenues : LightGBM (ref E02) + XGBoost/CatBoost GPU (ref E07/E08)."""
     ex, lib = v4_avec(familles), "+".join(familles)
@@ -187,6 +209,24 @@ def encodage_cible(x_tr, y_tr, x_autres, m=100.0, k_interne=5):
     return enc_tr, [pd.Series(x).map(t).fillna(prior).to_numpy() for x in x_autres]
 
 
+def one_hot(X, Xte, cats, garder_origine=False):
+    """One-hot des colonnes catégorielles (-1 = modalité à part). NON supervisé (aucune cible) :
+    les modalités sont celles de train ∪ test, colonne par colonne -> pas besoin de le faire dans les folds."""
+    nouv, nouv_te = [], []
+    for c in cats:
+        mods = np.union1d(X[c].unique(), Xte[c].unique())
+        for m in mods:
+            nom = f"{c}_oh{int(m)}"
+            nouv.append((X[c] == m).astype(np.float32).rename(nom))
+            nouv_te.append((Xte[c] == m).astype(np.float32).rename(nom))
+    garde = list(X.columns) if garder_origine else [c for c in X.columns if c not in cats]
+    X2 = pd.concat([X[garde], *nouv], axis=1)
+    Xte2 = pd.concat([Xte[garde], *nouv_te], axis=1)
+    print(f"  one-hot : {len(nouv)} colonnes indicatrices ajoutées, origine {'gardée' if garder_origine else 'retirée'}"
+          f" -> {X2.shape[1]} variables", flush=True)
+    return X2, Xte2, (cats if garder_origine else [])
+
+
 def colonnes_cat(version: str, feats: list[str]) -> list[str]:
     if version == "v0":
         return [c for c in feats if c.endswith("_cat")]
@@ -201,6 +241,15 @@ def ajuster_lightgbm(cfg, Xtr, ytr, Xva, yva, Xte, cats):
     cf = cats if cfg.get("cat_native") else "auto"
     dtr = lgb.Dataset(Xtr, ytr, categorical_feature=cf, free_raw_data=False)
     dva = lgb.Dataset(Xva, yva, reference=dtr, categorical_feature=cf)
+    if cfg.get("early_stop") is None:
+        # Nombre d'arbres FIXE : la courbe de validation n'est que lue (diagnostic), jamais utilisée
+        # pour choisir l'itération -> le Gini du fold n'a pas de biais optimiste.
+        hist = {}
+        model = lgb.train(cfg["params"], dtr, num_boost_round=cfg["n_max"], valid_sets=[dva],
+                          callbacks=[lgb.record_evaluation(hist)])
+        auc = hist["valid_0"]["auc"]
+        return (model.predict(Xva), model.predict(Xte),
+                {"n_arbres": cfg["n_max"], "diag_iter_max_auc": int(np.argmax(auc)) + 1})
     model = lgb.train(cfg["params"], dtr, num_boost_round=cfg["n_max"], valid_sets=[dva],
                       callbacks=[lgb.early_stopping(cfg["early_stop"], verbose=False)])
     it = model.best_iteration
@@ -287,6 +336,8 @@ def validation_croisee(exp: str) -> dict:
     if cfg.get("cat_native") or cfg["modele"] == "catboost":
         for D in (X, Xte):
             D[cats] = D[cats] + 1          # -1 (manquant) -> 0 = modalité à part, valeurs >= 0
+    if cfg.get("onehot"):
+        X, Xte, cats = one_hot(X, Xte, cats, garder_origine=(cfg["onehot"] == "ajoute"))
     fold = U.charger_folds(train)
     te_cols = cfg.get("te_cols", [])
     print(f"train {X.shape}, test {Xte.shape}, {len(feats)} features (+{len(te_cols)} TE), "

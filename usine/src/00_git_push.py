@@ -19,6 +19,7 @@ git("config", "user.name", "Idir")
 git("config", "user.email", "zidir2004@users.noreply.github.com")
 if "origin" not in git("remote", check=False).stdout.split():
     git("remote", "add", "origin", REMOTE)
+git("rm", "-r", "--cached", "--quiet", "--ignore-unmatch", "catboost_info", check=False)
 git("add", "-A")
 git("commit", "-m", msg, check=False)
 distant = git("ls-remote", "--heads", "origin", "main", check=False)
