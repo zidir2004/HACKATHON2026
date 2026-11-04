@@ -5,7 +5,7 @@
 - Modèle : rangs égaux de E30 (LightGBM Jahrer + one-hot), E07 (XGBoost GPU), E08 (CatBoost GPU), E32c (réseau sur autoencodeur débruiteur, 3 graines)
 - 2_307 (E56) : serveur 0,3003, CV 0,2856 → égalité dans le bruit avec 2_306, on garde le plus simple
 - Livrables : rapport d'équipe (Claude Docs « Rapport Hackathon M2 — Soumission 2_306 »), `soutenance/plan.md`, `questions_reponses.md`, figures `11_*`, `src/README_2_306.md`, code commenté
-- En cours : 3ᵉ autoencodeur E70 (GPU), pour information seulement
+- Candidats de dernière heure (non mesurables en CV, à départager au serveur) : **2_308** (E84, 4 membres de 2_306 réentraînés sur 100 % du train, revu déposable) et **2_309** (E86 : arbres sur 100 % avec LightGBM 1260 arbres + membre « 3 réseaux » E73), format vérifié par le lead-tech
 - Échéance : **16h00 (Paris) fermeture des soumissions** ; gel à 15h ; check-ups 11h et 14h
 
 ## 1. Compréhension du sujet
@@ -93,6 +93,16 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 
 **Lecture** : un modèle *plus faible seul* (réseau 0,275) mais *différent* (il apprend une autre représentation des données) améliore le mélange : c'est la diversité qui paie, pas la force individuelle. Incident : collision d'identifiants E32/E33 entre les deux pistes parallèles → lignes de la piste A renommées E32A/E33A ; le reviewer a vérifié qu'aucun livrable n'utilise un fichier écrasé.
 
+### Dernière heure (14h35–14h56) — décision utilisateur : réentraînement sur 100 % + 3ᵉ autoencodeur
+| Exp | Changement | Gini CV | Verdict |
+|---|---|---|---|
+| E70/E71c | 3ᵉ DAE (3×2000, swap noise 10 %, 215 époques) + réseau, 3 graines | 0,2775 (seul) | neutre vs E51c (+0,0005, 2/5), meilleur réseau |
+| E72 | E30 + E07 + E08 + moyenne(E32c, E51c, E71c) | 0,28565 | garde vs E33f (+0,0003, 5/5) ; neutre vs E56 |
+| E80–E83 | 4 membres de E33f réentraînés sur 100 % (arbres × 1,2) | n/a | Spearman vs versions par folds 0,991–0,998 |
+| E84 | Mélange des refits → **2_308** | n/a | revu déposable (rapport 94) |
+| E85 | LightGBM refit 1260 arbres (1050 × 1,2 ; le reviewer a mesuré 1400 > optimum) | n/a | Spearman vs E80 0,997 |
+| E86 | E85 + E81 + E82 + E73 (3 réseaux) → **2_309** | n/a | format vérifié, Spearman 0,998 vs 2_306 |
+
 ## 6. Revues du reviewer
 - 10h14 — Revue E02–E16 / 2_303.csv (`rapports/91_reviewer_revue_E09.md`) : **déposable**. Pas de fuite (E05 bien en folds avec K-fold interne ; mêmes folds pour les 3 membres). Gain du mélange réel sur la graine 42 (5/5). Réserves : robustesse sur une autre graine en cours (job `91_revue_E09_s7`) ; gain E02 non significatif (à présenter comme simplification).
 - 10h03 — Lead-tech : le mélange sortait des rangs (moyenne 0,5) ; ajout de `src/07_rangs_vers_proba.py` qui conserve l'ordre exact (même Gini) et donne des valeurs de probabilité (moyenne 0,0364), pour respecter « prédiction en probabilité ».
@@ -153,3 +163,6 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 14h12 — Scores serveur : 2_306 = 0,30079 > 2_307 = 0,3003. Décision utilisateur : **2_306 = modèle final présenté**. 3ᵉ DAE (E70) laissé tourner sur GPU.
 - 14h20 — Analyste : figures `11_*` (progression, schéma, corrélations, gains/déciles E33f, ce qui a marché, apport des membres), plan de soutenance 5 membres, 22 questions-réponses. ML engineer : 7 scripts de la chaîne 2_306 commentés (AST inchangé vérifié), `src/README_2_306.md`.
 - 14h25 — Rapport d'équipe rédigé dans Claude Docs (process, répartition des 5 membres, code, résultats).
+- 14h33 — PowerPoint de soutenance livré (`soutenance/Hackathon_Groupe2_2_306.pptx`). Choix utilisateur : rester discret sur Kaggle ; le lead-tech a conservé une mention de source (slide 9) par honnêteté.
+- 14h35 — Décision utilisateur : réentraîner sur 100 % + combiner avec le 3ᵉ autoencodeur.
+- 14h40 — 2_308 prêt ; 14h55 revue : déposable. 14h56 — 2_309 prêt, format vérifié.
