@@ -13,6 +13,14 @@ Version RÉDUITE (contrainte de temps du hackathon) :
 
 Le DAE est entraîné sur train + test (aucune cible utilisée : légitime, mais à signaler).
 
+Rôle dans la chaîne 2_306 : produit le DAE dont les activations nourrissent le réseau E32b (13_nn_dae.py).
+  Commande exacte du DAE de 2_306 (GPU, 32 min, 596 époques ; log usine/logs/36_dae.log) :
+    python -u usine/src/12_dae.py --budget-min 32 --batch 512
+  -> usine/data/dae/dae.pt (copie de sauvegarde identique : dae_E33f_596ep.pt).
+  ATTENTION : relancer cette commande ÉCRASE dae.pt. Les poids existent déjà : pour reproduire 2_306,
+  il suffit de relancer 13_nn_dae.py. Entraînement à budget de TEMPS et en TF32 -> non reproductible
+  bit à bit (le nombre d'époques dépend de la vitesse de la machine).
+
 Usage : python -u usine/src/12_dae.py --budget-min 35 [--batch 1024] [--lr 1e-3]
 Sorties : usine/data/dae/X_all.npy (entrées préparées, train puis test, triés par id),
           usine/data/dae/meta.json, usine/data/dae/dae.pt (poids), log par époque.
@@ -50,6 +58,9 @@ torch.backends.cudnn.allow_tf32 = True
 #    Calculé sur train + test (transformation non supervisée).
 # ---------------------------------------------------------------------------
 def rank_gauss(x: np.ndarray) -> np.ndarray:
+    """RankGauss : rend chaque variable numérique ~ gaussienne centrée, ce que les réseaux préfèrent
+    (échelles comparables, pas de valeurs extrêmes qui saturent les neurones). Ne garde que l'ordre
+    des valeurs, donc insensible aux distributions très asymétriques (ex. ps_car_13)."""
     r = rankdata(x, method="average")                  # ex aequo -> même valeur
     u = (r - 0.5) / len(x) * 2.0 - 1.0                 # dans ]-1, 1[
     u = np.clip(u, -1 + 1e-6, 1 - 1e-6)
@@ -58,8 +69,12 @@ def rank_gauss(x: np.ndarray) -> np.ndarray:
 
 
 def preparer_entrees():
+    """Construit la matrice d'entrée du DAE (train puis test, triés par id), la sauvegarde
+    (X_all.npy + meta.json) et la renvoie. Aucune cible utilisée."""
     train, test = U.charger_donnees("v1")             # triés par id
     schema = json.loads((U.USINE / "data/processed/v1/schema.json").read_text(encoding="utf-8"))
+    # train + test ensemble : la transformation est non supervisée, et le DAE doit connaître
+    # la distribution des assurés du test pour bien les représenter.
     tout = pd.concat([train.drop(columns=[U.TARGET]), test], ignore_index=True)
     blocs, noms = [], []
     for c in schema["numeric_cols"]:
@@ -88,6 +103,8 @@ def preparer_entrees():
 # 2. Modèle : « deep stack » F-1500-1500-1500-F, ReLU, sortie linéaire
 # ---------------------------------------------------------------------------
 class DAE(nn.Module):
+    """Autoencodeur : entrée bruitée -> 3 couches cachées de 1500 ReLU -> reconstruction de l'entrée propre.
+    Les 3 x 1500 = 4500 activations cachées forment la nouvelle représentation de chaque assuré."""
     def __init__(self, n_in: int, n_hid: int = 1500):
         super().__init__()
         self.h1, self.h2, self.h3 = nn.Linear(n_in, n_hid), nn.Linear(n_hid, n_hid), nn.Linear(n_hid, n_hid)
@@ -108,6 +125,9 @@ class DAE(nn.Module):
 #    Avantage vs bruit gaussien : la valeur bruitée reste une valeur plausible de la colonne.
 # ---------------------------------------------------------------------------
 def swap_noise(xb, X_all, p: float):
+    """Swap noise : on remplace p = 15 % des cases par la valeur d'un autre assuré (même colonne) ;
+    le réseau apprend à reconstruire la ligne d'origine -> il doit apprendre les liens entre
+    variables, d'où une représentation robuste. Calcul vectorisé sur GPU (masque aléatoire)."""
     B, F = xb.shape
     lignes = torch.randint(0, X_all.shape[0], (B, F), device=xb.device)
     cols = torch.arange(F, device=xb.device).expand(B, F)
@@ -121,11 +141,13 @@ def swap_noise(xb, X_all, p: float):
 #    de sorte que le programme se termine « proprement » quel que soit le nombre d'époques réalisé.
 # ---------------------------------------------------------------------------
 def entrainer(X, a):
+    """Entraîne le DAE sur GPU dans le budget de temps a.budget_min, sauvegarde toutes les 10 époques
+    et à la fin (usine/data/dae/<a.sortie>)."""
     dev = "cuda"
-    torch.manual_seed(U.SEED); np.random.seed(U.SEED)
+    torch.manual_seed(a.graine); np.random.seed(a.graine)
     Xg = torch.from_numpy(X).to(dev)                         # 1,49 M x F en float32 (~1,3 Go) sur le GPU
     N, F = Xg.shape
-    model = DAE(F).to(dev)
+    model = DAE(F, a.largeur).to(dev)
     ep_depart = 0
     if a.reprise:                                              # reprise depuis un checkpoint existant
         ck = torch.load(DAE_DIR / a.reprise, map_location=dev)
@@ -134,13 +156,14 @@ def entrainer(X, a):
     opt = torch.optim.Adam(model.parameters(), lr=a.lr)
     controle = Xg[torch.randperm(N, device=dev)[:20000]]       # échantillon fixe pour suivre la reconstruction
     budget, t0, ep = a.budget_min * 60, time.time(), 0
-    print(f"[4] DAE {F}-1500-1500-1500-{F} | {sum(p.numel() for p in model.parameters())/1e6:.1f} M paramètres "
+    print(f"[4] DAE {F}-{a.largeur}-{a.largeur}-{a.largeur}-{F} | graine {a.graine} | {sum(p.numel() for p in model.parameters())/1e6:.1f} M paramètres "
           f"| batch {a.batch} | swap {a.swap} | budget {a.budget_min} min", flush=True)
     while ep < a.max_epochs and time.time() - t0 < budget:
         te = time.time(); model.train()
         perm, somme, nb = torch.randperm(N, device=dev), 0.0, 0
         for i in range(0, N, a.batch):
             xb = Xg[perm[i:i + a.batch]]
+            # Cible = la ligne PROPRE xb, entrée = la ligne bruitée : c'est le « débruitage »
             perte = nn.functional.mse_loss(model(swap_noise(xb, Xg, a.swap)), xb)
             opt.zero_grad(set_to_none=True); perte.backward(); opt.step()
             somme += perte.item() if (nb % 50 == 0) else 0.0; nb += 1
@@ -149,6 +172,7 @@ def entrainer(X, a):
         for g in opt.param_groups:
             g["lr"] = a.lr * a.lr_fin ** frac
         model.eval()
+        # Suivi : erreur de reconstruction sur un échantillon fixe, sans et avec bruit
         with torch.no_grad():
             mse_propre = nn.functional.mse_loss(model(controle), controle).item()
             mse_bruit = nn.functional.mse_loss(model(swap_noise(controle, Xg, a.swap)), controle).item()
@@ -162,10 +186,14 @@ def entrainer(X, a):
 
 
 def sauver(model, F, ep, a):
-    torch.save(dict(etat=model.state_dict(), n_in=F, epoques=ep, batch=a.batch, swap=a.swap, lr=a.lr),
+    """Checkpoint : poids + hyperparamètres + nombre d'époques réellement faites (relu par 13_nn_dae.py)."""
+    torch.save(dict(etat=model.state_dict(), n_in=F, n_hid=a.largeur, graine=a.graine, epoques=ep, batch=a.batch, swap=a.swap, lr=a.lr),
                DAE_DIR / a.sortie)
 
 
+# ---------------------------------------------------------------------------
+# 5. Point d'entrée : arguments, préparation (ou relecture) des entrées, entraînement
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--budget-min", type=float, default=35)
@@ -174,9 +202,12 @@ if __name__ == "__main__":
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--lr-fin", type=float, default=0.05, help="facteur du lr atteint à la fin du budget")
     ap.add_argument("--swap", type=float, default=0.15)
+    ap.add_argument("--largeur", type=int, default=1500, help="neurones par couche cachée")
+    ap.add_argument("--graine", type=int, default=U.SEED)
     ap.add_argument("--reprise", default="", help="checkpoint de départ dans usine/data/dae (ex. dae.pt)")
     ap.add_argument("--sortie", default="dae.pt", help="nom du checkpoint écrit (ne pas écraser dae.pt en reprise)")
     a = ap.parse_args()
+    # Garde-fou : ne jamais écraser la sauvegarde du DAE de la soumission finale
     assert a.sortie not in ("dae_E33f_596ep.pt",) and not (a.reprise and a.sortie == a.reprise), "la reprise doit écrire sous un autre nom"
     # En reprise, on relit les entrées déjà préparées (identiques) pour garantir le même ordre de colonnes
     # Les entrées (déterministes) déjà préparées sont relues : un 2e DAE ou une reprise utilise EXACTEMENT

@@ -1,0 +1,17 @@
+exp,ref,texte,d,se,verdict,plis
+E02,E01,retrait des 20 ps_calc,0.00218,0.0013908342820048692,garde,4/5
+E03,E02,indicateurs de manquants,-0.00087,0.00048746281909495417,neutre,2/5
+E04,E02,"sans ps_ind_14, one-hot regroupés",-0.00028,0.00047851854718495494,neutre,2/5
+E05,E02,encodage cible de ps_car_11_cat,0.00027,0.0003667151483099655,neutre,2/5
+E06,E02,catégorielles natives LightGBM,-0.00988,0.001435555641554865,rejete,0/5
+E09,E02,mélange LGBM + XGB + CatBoost,0.00255,0.00022360679774997895,garde,5/5
+E13,E02,"taux d'apprentissage 0,02 -> 0,01",0.00091,0.000254911749434976,garde,5/5
+E17,E09,3 graines de LightGBM dans le mélange,0.00028,0.00014758048651498611,neutre,4/5
+E19,E02,12 variables construites d'un coup,-0.00283,0.0003622430123549659,rejete,0/5
+E28,E02m,"somme des binaires (E27), 3 graines",0.0005,0.00031752165280497015,neutre,3/5
+E29,E13,paramètres bruts de Jahrer,-0.00299,0.00035777087639996636,rejete,0/5
+E30b,E29,+ one-hot des _cat,0.00112,0.0005858498101049449,garde,5/5
+E34,E17,mélange avec LightGBM Jahrer (3 graines),0.00055,8.944271909999159e-05,garde,5/5
+E33f,E09,mélange à 4 avec le réseau DAE,0.00188,0.00016099689437998487,garde,5/5
+E41,E33f,mélange avec DAE repris (E40c),-0.00019,8.049844718999243e-05,rejete,1/5
+E52,E52_g0,"MLP sans DAE, 3 graines",0.00012,0.000702125344934934,neutre,2/5

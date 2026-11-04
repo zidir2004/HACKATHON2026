@@ -9,6 +9,12 @@ Règles : les -1 d'origine restent (pas d'imputation, pas d'écrêtage, aucune l
 aucun encodage cible ici (il se fait dans les folds, dans 03_train.py).
 Sortie : usine/data/processed/<vX>/{train,test}.parquet + schema.json
 Lancement (cwd = dossier Hackathon) : python -u usine/src/02_prepare.py
+
+Rôle dans la chaîne 2_306 : seule la version **v1** est utilisée par la soumission finale
+(E30, E07, E08, et le DAE 12_dae.py partent tous de v1). v2 et v3 ont été testées puis non retenues.
+Entrées : usine/data/interim/{train,test}_raw.parquet (copies typées des CSV, écrites par 01_audit.py)
+Sorties : usine/data/processed/v1/{train,test}.parquet + schema.json (et v2, v3, prep_stats.json)
+Durée   : < 1 min, CPU.
 """
 import json
 import pathlib
@@ -26,9 +32,12 @@ G_16 = ["ps_ind_16_bin", "ps_ind_17_bin", "ps_ind_18_bin"]
 stats = {}   # compteurs pour le rapport
 
 
-# ---------------------------------------------------------------- transformations
+# === 1. Transformations (une par version) ===
 def retirer_calc(df):
-    """v1 : retire les 20 variables ps_calc_*."""
+    """v1 : retire les 20 variables ps_calc_*.
+
+    Pourquoi : l'audit a montré qu'elles sont indépendantes de la cible (bruit pur, Gini ~ 0) ;
+    les garder ajoute du bruit aux arbres et des colonnes inutiles au réseau."""
     return df.drop(columns=[c for c in df.columns if c.startswith("ps_calc_")])
 
 
@@ -69,8 +78,9 @@ def nettoyer_redondances(df):
     return df
 
 
-# ---------------------------------------------------------------- schéma
+# === 2. Schéma (types de colonnes lus ensuite par 03_train.py et 12_dae.py) ===
 def construire_schema(df, version):
+    """Classe les variables par suffixe (_cat, _bin, autres = numériques) et documente le code -1."""
     feats = [c for c in df.columns if c not in (ID, TARGET)]
     cat = [c for c in feats if c.endswith("_cat")]
     binc = [c for c in feats if c.endswith("_bin") or c.endswith("_manq")]
@@ -89,8 +99,10 @@ def construire_schema(df, version):
     }
 
 
-# ---------------------------------------------------------------- contrôles
+# === 3. Contrôles de non-régression ===
 def controles(raw_tr, raw_te, tr, te, version):
+    """Garde-fous : mêmes ids dans le même ordre, cible intacte, aucune ligne perdue, aucun NaN
+    introduit, colonnes conservées strictement identiques à l'origine. Lève AssertionError sinon."""
     assert tr[ID].equals(raw_tr[ID]) and te[ID].equals(raw_te[ID]), "ids/ordre modifiés"
     assert len(tr) == len(raw_tr) and len(te) == len(raw_te)
     assert tr[TARGET].equals(raw_tr[TARGET]), "target modifiée"
@@ -104,7 +116,9 @@ def controles(raw_tr, raw_te, tr, te, version):
     print(f"[controles OK] {version} : train {tr.shape}, test {te.shape}")
 
 
+# === 4. Écriture et enchaînement des versions ===
 def ecrire(tr, te, version, raw_tr, raw_te):
+    """Contrôle puis écrit usine/data/processed/<version>/{train,test}.parquet + schema.json."""
     controles(raw_tr, raw_te, tr, te, version)
     d = OUT / version
     d.mkdir(parents=True, exist_ok=True)
@@ -119,6 +133,7 @@ def ecrire(tr, te, version, raw_tr, raw_te):
 
 def main():
     raw_tr, raw_te = pd.read_parquet(INTERIM / "train_raw.parquet"), pd.read_parquet(INTERIM / "test_raw.parquet")
+    # Même transformation appliquée au train et au test (aucun paramètre appris -> pas de fuite)
     v1 = [retirer_calc(d) for d in (raw_tr, raw_te)]
     ref = [c for c in v1[1].columns if c != ID]   # variables hors calc
     ecrire(*v1, "v1", raw_tr, raw_te)

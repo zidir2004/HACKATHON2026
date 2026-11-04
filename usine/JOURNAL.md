@@ -1,10 +1,11 @@
 # Journal — Hackathon M2 DS4SC : prédiction de sinistres (Gini)
 
 ## 0. Résumé (toujours à jour)
-- Meilleur score CV : **0,2856 ± 0,0073** (E56) — à annoncer ≈ 0,285 — score serveur : —
-- Modèle actuel : E56 = rangs égaux de E30 (LightGBM Jahrer + one-hot), E07 (XGBoost GPU), E08 (CatBoost GPU), moyenne(E32c, E51c) (2 réseaux sur 2 autoencodeurs débruiteurs, bruit 15 % et 7 %)
-- Livrable valide en place : **`submissions/2_307.csv`** (revue finale : à déposer en dernier) ; repli 2_306
-- Prochaine piste : point de contrôle n°3 (choix final), gel 15h, mise à jour des figures de soutenance
+- **Modèle final présenté : E33f → `2_306.csv`, score serveur 0,30079** (meilleur score officiel) — Gini CV 0,2853 ± 0,0074
+- Modèle : rangs égaux de E30 (LightGBM Jahrer + one-hot), E07 (XGBoost GPU), E08 (CatBoost GPU), E32c (réseau sur autoencodeur débruiteur, 3 graines)
+- 2_307 (E56) : serveur 0,3003, CV 0,2856 → égalité dans le bruit avec 2_306, on garde le plus simple
+- Livrables : rapport d'équipe (Claude Docs « Rapport Hackathon M2 — Soumission 2_306 »), `soutenance/plan.md`, `questions_reponses.md`, figures `11_*`, `src/README_2_306.md`, code commenté
+- En cours : 3ᵉ autoencodeur E70 (GPU), pour information seulement
 - Échéance : **16h00 (Paris) fermeture des soumissions** ; gel à 15h ; check-ups 11h et 14h
 
 ## 1. Compréhension du sujet
@@ -107,10 +108,12 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 | 09h29 | E01 | 0,2787 | à venir | `submissions/2_302.csv` |
 | 10h14 | E09 | 0,2834 | à venir | `submissions/2_303.csv` |
 | 11h40 | E34 | 0,2843 | — | `submissions/2_305.csv` |
-| 12h45 | E33f | 0,2853 | à venir | `submissions/2_306.csv` |
-| 14h10 | E56 | 0,2856 | à venir | `submissions/2_307.csv` |
+| 12h45 | E33f | 0,2853 | **0,30079** | `submissions/2_306.csv` |
+| 14h10 | E56 | 0,2856 | 0,3003 | `submissions/2_307.csv` |
 
 - Feature engineering v4 (10h20, `rapports/07_data-cleaner_features_v4.md`) : v1 + 12 variables non supervisées (comptages de catégorielles, interactions ps_reg_01×ps_reg_02, ps_car_13×ps_reg_03, ps_car_13/ps_car_12, ps_ind_03 & ps_ind_15, entiers reconstruits, somme des binaires, comptage du croisement ps_ind_05_cat×ps_car_04_cat). Plus prometteuse : `ind05_x_car04_count` (Gini univarié 0,124 vs 0,043/0,075 pour ses sources). À tester (E19+).
+
+Historique serveur fourni par l'utilisateur (heures de dépôt) : 11h10 0,29273 · 12h34 0,29689 · 12h41 0,29681 · 12h58 **0,30079 (2_306)** · 14h06 0,29823 · 14h10 0,3003 (2_307). Correspondance des autres heures à confirmer.
 
 ## 8. Enseignements métier
 Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
@@ -147,3 +150,6 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 13h48 — E56 (2 réseaux DAE) = 0,2856. Modèles CPU additionnels tous rejetés.
 - 14h04 — Vérification à la demande de l'utilisateur : la RTX 4060 est bien utilisée (torch cuda, 3,1 s/époque DAE) ; au repos depuis 13h48.
 - 14h10 — Revue finale : 2_307 recommandé. Point de contrôle n°3 présenté.
+- 14h12 — Scores serveur : 2_306 = 0,30079 > 2_307 = 0,3003. Décision utilisateur : **2_306 = modèle final présenté**. 3ᵉ DAE (E70) laissé tourner sur GPU.
+- 14h20 — Analyste : figures `11_*` (progression, schéma, corrélations, gains/déciles E33f, ce qui a marché, apport des membres), plan de soutenance 5 membres, 22 questions-réponses. ML engineer : 7 scripts de la chaîne 2_306 commentés (AST inchangé vérifié), `src/README_2_306.md`.
+- 14h25 — Rapport d'équipe rédigé dans Claude Docs (process, répartition des 5 membres, code, résultats).

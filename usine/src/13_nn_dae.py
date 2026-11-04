@@ -9,6 +9,17 @@ Protocole : folds figés usine/experiences/folds.csv (obligatoire). Un réseau p
 sur le Gini du fold de validation -> léger biais optimiste (l'époque est choisie sur le fold évalué ;
 mesuré dans le rapport via le Gini à époque commune). Prédiction test = moyenne des 5 réseaux.
 
+Rôle dans la chaîne 2_306 : produit le 4e membre du mélange (E32c = moyenne de 3 graines).
+  Version retenue = --moyenne-epoques 6 (E32b) : 6 époques FIXES et moyenne des prédictions des
+  6 époques, SANS early stopping -> évite de choisir l'arrêt sur le fold évalué (score CV honnête).
+  Commandes exactes (GPU, ~2-3 min chacune, log usine/logs/39_nn_E32b.log, 42_*, 43_*) :
+    python -u usine/src/13_nn_dae.py --exp E32b    --moyenne-epoques 6
+    python -u usine/src/13_nn_dae.py --exp E32b_g1 --moyenne-epoques 6 --graine 1
+    python -u usine/src/13_nn_dae.py --exp E32b_g2 --moyenne-epoques 6 --graine 2
+  Entrées : usine/data/dae/X_all.npy, meta.json, dae.pt (12_dae.py), folds.csv, données v1 (cible),
+            usine/experiences/oof/E09_oof.csv (référence de comparaison seulement)
+  Sorties : usine/experiences/oof/<exp>_oof.csv, _test.csv, _folds_detail.csv + ligne au registre.
+
 Usage : python -u usine/src/13_nn_dae.py --exp E32 [--folds 0 1 2 3 4] [--sans-dae]
   Chaque fold est sauvé dans usine/data/dae/<exp>_fold<k>.npz ; quand les 5 existent, le script
   assemble OOF/test (oof/<exp>_oof.csv, _test.csv, _folds_detail.csv), compare à E09 et écrit le registre.
@@ -40,16 +51,21 @@ DEV = "cuda"
 # 1. Chargement : entrées préparées par 12_dae.py, cible, folds figés, DAE gelé
 # ---------------------------------------------------------------------------
 def charger(sans_dae: bool, fichier_dae: str = "dae.pt"):
+    """Charge X (train+test préparés par 12_dae.py) sur le GPU, la cible, les folds figés et le DAE gelé.
+
+    Le DAE est GELÉ (requires_grad False) : il sert seulement d'extracteur de représentation ;
+    seul le petit réseau supervisé apprend avec la cible, dans les folds d'entraînement."""
     meta = json.loads((DAE_DIR / "meta.json").read_text(encoding="utf-8"))
     X = torch.from_numpy(np.load(DAE_DIR / "X_all.npy")).to(DEV)
     train, test = U.charger_donnees("v1")                         # même tri par id que 12_dae.py
+    # Garde-fou : les lignes de X_all.npy doivent être dans le même ordre que la cible (tri par id)
     assert len(train) == meta["n_train"] and int(train[U.ID].iloc[0]) == meta["ids_train_premier"]
     y = train[U.TARGET].to_numpy(dtype=np.float32)
     fold = U.charger_folds(train)
     dae = None
     if not sans_dae:
         ck = torch.load(DAE_DIR / fichier_dae, map_location=DEV)
-        dae = DAE_MOD.DAE(ck["n_in"]).to(DEV); dae.load_state_dict(ck["etat"]); dae.eval()
+        dae = DAE_MOD.DAE(ck["n_in"], ck.get("n_hid", 1500)).to(DEV); dae.load_state_dict(ck["etat"]); dae.eval()
         for p in dae.parameters():
             p.requires_grad_(False)
         print(f"[1] DAE chargé ({ck['epoques']} époques)", flush=True)
@@ -68,6 +84,8 @@ def representation(dae, xb):
 # 2. Réseau supervisé
 # ---------------------------------------------------------------------------
 class Reseau(nn.Module):
+    """4500 -> 1000 -> 1000 -> 1. Dropout fort (0,5) : 4500 entrées pour seulement ~16 000 sinistres
+    au total, le réseau sur-apprendrait vite sans régularisation."""
     def __init__(self, n_in, n_hid=1000, drop_in=0.1, drop=0.5):
         super().__init__()
         self.net = nn.Sequential(
@@ -79,6 +97,7 @@ class Reseau(nn.Module):
 
 
 def predire(model, dae, X, idx, batch=4096):
+    """Probabilités (sigmoïde) pour les lignes idx, calculées par lots (représentation DAE à la volée)."""
     model.eval(); out = []
     with torch.no_grad():
         for i in range(0, len(idx), batch):
@@ -90,7 +109,10 @@ def predire(model, dae, X, idx, batch=4096):
 # 3. Un fold : entraînement + early stopping sur le Gini du fold de validation
 # ---------------------------------------------------------------------------
 def un_fold(k, X, y, fold, n_train, dae, a):
+    """Entraîne un réseau sur les 4 folds d'entraînement, prédit le fold k (OOF) et tout le test.
+    Sauvegarde usine/data/dae/<exp>_fold<k>.npz (permet de relancer un fold seul)."""
     torch.manual_seed(U.SEED + k + 1000 * a.graine)   # graine 0 = E32/E32b
+    # Indices : entraînement = autres folds ; validation = fold k ; test = lignes après n_train dans X
     i_tr = torch.from_numpy(np.where(fold != k)[0]).to(DEV)
     i_va = np.where(fold == k)[0]
     i_va_g, i_te = torch.from_numpy(i_va).to(DEV), torch.arange(n_train, X.shape[0], device=DEV)
@@ -108,16 +130,19 @@ def un_fold(k, X, y, fold, n_train, dae, a):
         perm = i_tr[torch.randperm(len(i_tr), device=DEV)]
         for i in range(0, len(perm), a.batch):
             b = perm[i:i + a.batch]
+            # Log-loss sur les logits (plus stable numériquement que sigmoïde + BCE séparées)
             perte = nn.functional.binary_cross_entropy_with_logits(model(representation(dae, X[b])), yg[b])
             opt.zero_grad(set_to_none=True); perte.backward(); opt.step()
         p_va = predire(model, dae, X, i_va_g)
         g = U.gini(y[i_va], p_va); courbe.append(round(g, 5))
+        # Mode retenu pour 2_306 : on cumule les prédictions de chaque époque (val ET test)
         if a.moyenne_epoques:
             somme_va, somme_te = somme_va + p_va, somme_te + predire(model, dae, X, i_te)
             g_moy = U.gini(y[i_va], somme_va)
             print(f"  fold {k} ep {ep:2d} | {time.time()-te:5.1f}s | gini val {g:.5f} | moyenne ep 1..{ep} {g_moy:.5f}",
                   flush=True)
             continue
+        # Mode early stopping (E32, non retenu) : on garde les poids de la meilleure époque
         if g > meilleur:
             meilleur, ep_best, etat = g, ep, {n: t.detach().clone() for n, t in model.state_dict().items()}
         print(f"  fold {k} ep {ep:2d} | {time.time()-te:5.1f}s | gini val {g:.5f} | meilleur {meilleur:.5f} (ep {ep_best})",
@@ -139,6 +164,8 @@ def un_fold(k, X, y, fold, n_train, dae, a):
 # 4. Assemblage des 5 folds : OOF, test, comparaison appariée vs E09, registre
 # ---------------------------------------------------------------------------
 def assembler(y, fold, ids, ids_test, a):
+    """Réunit les 5 folds : OOF complet, prédiction test = moyenne des 5 réseaux, Gini par fold,
+    comparaison appariée vs E09, ligne au registre."""
     T = importlib.import_module("03_train")
     oof, p_te, gs, details, courbes = np.full(len(y), np.nan), [], [], [], []
     for k in range(U.N_FOLDS):
@@ -174,6 +201,9 @@ def assembler(y, fold, ids, ids_test, a):
                      f"Spearman OOF vs E09 {rho:.4f}; apparié vs E09 Δ {c['d_moy']:+.5f} ({c['folds_gagnes']})")))
 
 
+# ---------------------------------------------------------------------------
+# 5. Point d'entrée
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", default="E32")
@@ -193,5 +223,6 @@ if __name__ == "__main__":
     X, y, fold, ids, ids_test, n_train, dae = charger(a.sans_dae, a.dae)
     for k in a.folds:
         un_fold(k, X, y, fold, n_train, dae, a)
+    # Assemblage seulement quand les 5 folds existent (les folds peuvent être lancés séparément)
     if all((DAE_DIR / f"{a.exp}_fold{k}.npz").exists() for k in range(U.N_FOLDS)):
         assembler(y, fold, ids, ids_test, a)

@@ -19,6 +19,20 @@ expérience de RÉFÉRENCE (ref) et changement testé. Une expérience = UN chan
      comparaisons.csv, ligne dans registre.csv
 
 Métrique : Gini = 2*AUC - 1 -> aucun seuil à optimiser (seuil = n/a).
+
+Rôle dans la chaîne 2_306 : produit les 3 membres « arbres » du mélange final E33f.
+  E30 = LightGBM, paramètres Jahrer (1re place Porto Seguro), 1400 arbres fixes, one-hot des _cat (CPU, ~2 min)
+  E07 = XGBoost GPU, early stopping sur le fold de validation                     (GPU, ~20 s)
+  E08 = CatBoost GPU, _cat en catégorielles natives, early stopping               (GPU, ~6,5 min)
+  Commandes exactes (cwd = Hackathon) :
+    python -u usine/src/03_train.py --exp E07 E08 --base E02 --base-version v1
+    python -u usine/src/03_train.py --exp E30
+  (E07/E08 sont définies dans ajouter_configs_dynamiques, d'où --base ; E30 dans le bloc « Piste A ».)
+Entrées : usine/data/processed/v1/*.parquet (02_prepare.py), usine/experiences/folds.csv
+Sorties : usine/experiences/oof/<EXP>_oof.csv (OOF), <EXP>_test.csv (moyenne des 5 modèles de fold),
+          <EXP>_folds_detail.csv, comparaisons.csv, registre.csv
+Note : il n'y a pas de réentraînement sur tout le train : la prédiction test est la moyenne des
+5 modèles de fold (chacun vu sur 80 % des données), cohérente avec le score CV mesuré.
 """
 from __future__ import annotations
 
@@ -41,23 +55,29 @@ import utils as U  # noqa: E402
 # ---------------------------------------------------------------------------
 # 1. Configurations des expériences
 # ---------------------------------------------------------------------------
+# Paramètres de base par bibliothèque (réutilisés et modifiés un à un par les expériences).
+# Le déséquilibre (3,6 % de positifs) n'est pas corrigé par poids : le Gini ne dépend que de l'ordre,
+# et la log-loss non pondérée donne des probabilités bien calibrées.
 LGB_BASE = dict(
     objective="binary", metric="auc", learning_rate=0.02, num_leaves=24,
     min_child_samples=150, feature_fraction=0.6, bagging_fraction=0.8, bagging_freq=1,
     lambda_l1=1.0, lambda_l2=5.0, max_bin=255, n_jobs=16, seed=U.SEED, verbose=-1,
 )
 LGB_CAT = dict(LGB_BASE, cat_smooth=50, min_data_per_group=200, max_cat_threshold=32, cat_l2=10)
+# XGBoost sur GPU (device="cuda", histogrammes) : membre E07 de 2_306
 XGB_BASE = dict(
     objective="binary:logistic", eval_metric="auc", device="cuda", tree_method="hist",
     eta=0.03, max_depth=5, subsample=0.8, colsample_bytree=0.6, min_child_weight=10,
     reg_lambda=5.0, reg_alpha=1.0, max_bin=256, seed=U.SEED,
 )
+# CatBoost sur GPU : membre E08 de 2_306 (gère nativement les catégorielles par statistiques ordonnées)
 CB_BASE = dict(
     loss_function="Logloss", eval_metric="AUC", task_type="GPU", depth=6, learning_rate=0.05,
     l2_leaf_reg=5, border_count=254, random_seed=U.SEED, verbose=0,
 )
 LGB = dict(modele="lightgbm", params=LGB_BASE, n_max=3000, early_stop=200)
 
+# Dictionnaire central : une entrée par expérience (identifiant -> configuration complète)
 CONFIGS = {
     "E00": dict(version="v0", modele="logreg", params=dict(C=0.1, max_iter=1000),
                 changement="repère naïf : régression logistique L2 sur variables brutes standardisées"),
@@ -125,10 +145,12 @@ LGB_JAHRER = dict(
     min_data_in_leaf=1500, feature_fraction=0.7, bagging_freq=1, bagging_fraction=0.7,
     lambda_l1=1.0, lambda_l2=1.0, n_jobs=8, seed=U.SEED, verbose=-1,
 )
+# min_data_in_leaf=1500 : feuilles très peuplées -> arbres très régularisés, adaptés à une cible rare et bruitée
 LGB_J = dict(modele="lightgbm", params=LGB_JAHRER, n_max=1400, early_stop=None)
 CONFIGS.update({
     "E29": dict(version="v1", ref="E13", **LGB_J,
                 changement="LightGBM paramètres Jahrer (1re place Porto Seguro), 1400 arbres fixes, _cat numériques"),
+    # >>> E30 = membre LightGBM de la soumission finale 2_306 <<<
     "E30": dict(version="v1", ref="E29", **LGB_J, onehot="remplace",
                 changement="E29 + one-hot des 14 _cat (-1 = modalité à part), colonnes _cat d'origine RETIRÉES"),
     "E30b": dict(version="v1", ref="E29", **LGB_J, onehot="ajoute",
@@ -180,12 +202,14 @@ def ajouter_configs_dynamiques(base_exp: str, base_version: str, te_cols=()):
         "E06": dict(b, **dict(LGB, params=LGB_CAT), cat_native=True,
                     changement="toutes les _cat en catégorielles natives LightGBM (-1 = modalité à part)"),
         # Modèles comparatifs sur la meilleure version de données (ref = meilleur LightGBM)
+        # >>> E07 = membre XGBoost de 2_306 (lancé avec --base E02 --base-version v1) <<<
         "E07": dict(b, modele="xgboost", params=XGB_BASE, n_max=6000, early_stop=200, te_cols=te_cols,
                     changement="XGBoost GPU (depth 5, eta 0.03, subsample 0.8, colsample 0.6, mcw 10)"),
         "E15": dict(b, modele="catboost", params=dict(CB_BASE, learning_rate=0.03), n_max=8000,
                     early_stop=300, ref="E08", changement="CatBoost GPU : lr 0.05 -> 0.03 (patience 300)"),
         "E16": dict(b, modele="xgboost", params=dict(XGB_BASE, eta=0.015), n_max=10000, early_stop=400,
                     te_cols=te_cols, ref="E07", changement="XGBoost GPU : eta 0.03 -> 0.015 (patience 400)"),
+        # >>> E08 = membre CatBoost de 2_306 (même commande que E07) <<<
         "E08": dict(b, modele="catboost", params=CB_BASE, n_max=6000, early_stop=200,
                     changement="CatBoost GPU (depth 6, lr 0.05, _cat en cat_features natives)"),
     })
@@ -247,6 +271,7 @@ def one_hot(X, Xte, cats, garder_origine=False):
 
 
 def colonnes_cat(version: str, feats: list[str]) -> list[str]:
+    """Liste des variables catégorielles (_cat) présentes, lue dans le schema.json de la version."""
     if version == "v0":
         return [c for c in feats if c.endswith("_cat")]
     schema = json.loads((U.USINE / "data" / "processed" / version / "schema.json").read_text(encoding="utf-8"))
@@ -257,6 +282,8 @@ def colonnes_cat(version: str, feats: list[str]) -> list[str]:
 # 3. Modèles : (cfg, Xtr, ytr, Xva, yva, Xte, cats) -> (pred_val, pred_test, info)
 # ---------------------------------------------------------------------------
 def ajuster_lightgbm(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """LightGBM CPU. Deux modes : nombre d'arbres FIXE (E30) ou early stopping sur le fold de validation.
+    Les -1 sont laissés comme valeurs : les arbres les isolent d'eux-mêmes par un seuil."""
     cf = cats if cfg.get("cat_native") else "auto"
     dtr = lgb.Dataset(Xtr, ytr, categorical_feature=cf, free_raw_data=False)
     dva = lgb.Dataset(Xva, yva, reference=dtr, categorical_feature=cf)
@@ -276,7 +303,9 @@ def ajuster_lightgbm(cfg, Xtr, ytr, Xva, yva, Xte, cats):
 
 
 def ajuster_xgboost(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """XGBoost GPU avec early stopping (patience 200) ; prédit avec le meilleur nombre d'arbres."""
     import xgboost as xgb
+    # QuantileDMatrix : histogrammes pré-calculés, moins de mémoire GPU que DMatrix
     dtr = xgb.QuantileDMatrix(Xtr, ytr, max_bin=cfg["params"]["max_bin"])
     dva = xgb.DMatrix(Xva, yva)
     model = xgb.train(cfg["params"], dtr, num_boost_round=cfg["n_max"], evals=[(dva, "val")],
@@ -287,6 +316,7 @@ def ajuster_xgboost(cfg, Xtr, ytr, Xva, yva, Xte, cats):
 
 
 def ajuster_catboost(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """CatBoost GPU, _cat en cat_features natives (codes entiers), early stopping od_wait=200."""
     from catboost import CatBoostClassifier, Pool
     def pool(X, y=None):
         X = X.copy()
@@ -301,6 +331,7 @@ def ajuster_catboost(cfg, Xtr, ytr, Xva, yva, Xte, cats):
 
 
 def ajuster_logreg(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """Repère simple : standardisation (apprise dans le pipeline, donc sur le fold d'entraînement) + logistique L2."""
     model = make_pipeline(StandardScaler(), LogisticRegression(**cfg["params"]))
     model.fit(Xtr, ytr)
     return model.predict_proba(Xva)[:, 1], model.predict_proba(Xte)[:, 1], {"n_arbres": "n/a"}
@@ -321,11 +352,13 @@ def ajuster_logreg_riche(cfg, Xtr, ytr, Xva, yva, Xte, cats):
 
 
 def ajuster_extratrees(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """ExtraTrees sklearn (modèle de diversité, non retenu dans 2_306)."""
     from sklearn.ensemble import ExtraTreesClassifier
     model = ExtraTreesClassifier(**cfg["params"]).fit(Xtr, ytr)
     return model.predict_proba(Xva)[:, 1], model.predict_proba(Xte)[:, 1], {"n_arbres": cfg["params"]["n_estimators"]}
 
 
+# Aiguillage : nom du modèle dans la config -> fonction d'ajustement (même signature pour toutes)
 MODELES = {"logreg_riche": ajuster_logreg_riche, "extratrees": ajuster_extratrees, "lightgbm": ajuster_lightgbm, "xgboost": ajuster_xgboost,
            "catboost": ajuster_catboost, "logreg": ajuster_logreg}
 
@@ -365,6 +398,9 @@ def comparer(exp, ref, ginis, enregistrer=True):
 # 5. Validation croisée
 # ---------------------------------------------------------------------------
 def validation_croisee(exp: str) -> dict:
+    """Exécute une expérience de bout en bout (chargement, 5 folds, scores, sauvegardes, registre).
+    Renvoie un dict (gini moyen, écart-type, gini OOF, durée, détail par fold)."""
+    # --- 5.1 Chargement et préparation non supervisée (identique pour tous les folds) ---
     cfg = CONFIGS[exp]
     print(f"\n===== {exp} | {cfg['modele']} | données {cfg['version']} | ref {cfg.get('ref')} =====\n"
           f"{cfg['changement']}", flush=True)
@@ -374,14 +410,18 @@ def validation_croisee(exp: str) -> dict:
     X, y, Xte = train[feats].astype(np.float32), train[U.TARGET].to_numpy(), test[feats].astype(np.float32)
     if cfg.get("cat_native") or cfg["modele"] == "catboost":
         for D in (X, Xte):
+            # CatBoost exige des catégories >= 0
             D[cats] = D[cats] + 1          # -1 (manquant) -> 0 = modalité à part, valeurs >= 0
     if cfg.get("onehot"):
         X, Xte, cats = one_hot(X, Xte, cats, garder_origine=(cfg["onehot"] == "ajoute"))
+    # Folds figés communs à tout le projet : indispensable pour comparer et mélanger les OOF
     fold = U.charger_folds(train)
     te_cols = cfg.get("te_cols", [])
     print(f"train {X.shape}, test {Xte.shape}, {len(feats)} features (+{len(te_cols)} TE), "
           f"{len(cats)} cat, taux positifs {y.mean():.4%}", flush=True)
 
+    # --- 5.2 Boucle sur les 5 folds ---
+    # OOF : chaque ligne du train est prédite par un modèle qui ne l'a jamais vue
     oof, pred_test, ginis, infos = np.zeros(len(X)), np.zeros(len(Xte)), [], []
     t0 = time.time()
     for k in range(U.N_FOLDS):
@@ -394,22 +434,26 @@ def validation_croisee(exp: str) -> dict:
         t = time.time()
         p_va, p_te, info = MODELES[cfg["modele"]](cfg, Xtr, y[tr], Xva, y[va], Xtek, cats)
         oof[va] = p_va
+        # Test = moyenne des 5 modèles de fold
         pred_test += p_te / U.N_FOLDS
         g = U.gini(y[va], p_va)
         ginis.append(g); info.update(fold=k, gini=g, duree_s=round(time.time() - t, 1)); infos.append(info)
         print(f"  fold {k} : gini={g:.5f}  arbres={info['n_arbres']}  durée={info['duree_s']}s", flush=True)
 
+    # --- 5.3 Score : moyenne ± écart-type des Gini par fold (métrique officielle) ---
     res = dict(exp=exp, gini_moy=float(np.mean(ginis)), gini_std=float(np.std(ginis)),
                gini_oof=U.gini(y, oof), duree_s=round(time.time() - t0, 1), folds=infos)
     print(f"  => gini CV = {res['gini_moy']:.5f} ± {res['gini_std']:.5f} | gini OOF = {res['gini_oof']:.5f}"
           f" | durée totale {res['duree_s']}s")
 
+    # --- 5.4 Sauvegardes (relues par 06_melange.py et 07_rangs_vers_proba.py) ---
     U.OOF_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame({U.ID: train[U.ID], U.TARGET: y, "oof": oof, "fold": fold}).to_csv(
         U.OOF_DIR / f"{exp}_oof.csv", index=False)
     pd.DataFrame({U.ID: test[U.ID], "prediction": pred_test}).to_csv(U.OOF_DIR / f"{exp}_test.csv", index=False)
     pd.DataFrame(infos).to_csv(U.OOF_DIR / f"{exp}_folds_detail.csv", index=False)
 
+    # --- 5.5 Comparaison appariée vs la référence + ligne au registre ---
     arbres = [i["n_arbres"] for i in infos]
     comm = f"gini OOF {res['gini_oof']:.5f}; arbres/fold {arbres}; {res['duree_s']}s"
     extra = {}
@@ -432,6 +476,9 @@ def validation_croisee(exp: str) -> dict:
     return res
 
 
+# ---------------------------------------------------------------------------
+# 6. Point d'entrée : les options ajoutent des configs dynamiques, puis on lance chaque expérience
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", nargs="+", required=True)

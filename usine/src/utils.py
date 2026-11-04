@@ -8,6 +8,11 @@ Contenu :
   5. Registre des expériences
   6. Écriture + contrôle du format de soumission
 
+Rôle dans la chaîne 2_306 : bibliothèque importée par TOUS les scripts (02, 03, 06, 07, 12, 13).
+Elle fige ce qui doit être commun à toutes les expériences : la métrique, le découpage en folds
+(usine/experiences/folds.csv), le registre et le format de soumission.
+Ne se lance pas seule.
+
 Tous les chemins sont relatifs au dossier Hackathon (cwd du lanceur).
 """
 from __future__ import annotations
@@ -33,7 +38,8 @@ FOLDS_CSV = EXP_DIR / "folds.csv"
 REGISTRE_CSV = EXP_DIR / "registre.csv"
 SUB_DIR = USINE / "submissions"
 
-# Paramètres du protocole (NE PAS MODIFIER en cours de projet)
+# Paramètres du protocole (NE PAS MODIFIER en cours de projet) : tous les modèles du mélange
+# doivent être évalués sur exactement les mêmes folds, sinon les OOF ne sont pas comparables.
 N_FOLDS, SEED = 5, 42
 ID, TARGET = "id", "target"
 
@@ -43,6 +49,7 @@ ID, TARGET = "id", "target"
 # ---------------------------------------------------------------------------
 def gini(y_true, y_score) -> float:
     """Gini normalisé = 2*AUC - 1 (seul l'ordre des prédictions compte)."""
+    # Conséquence : on peut mélanger des RANGS au lieu de probabilités sans changer la métrique.
     return 2.0 * roc_auc_score(y_true, y_score) - 1.0
 
 
@@ -74,6 +81,8 @@ def liste_features(train: pd.DataFrame, exclure=()) -> list[str]:
 # ---------------------------------------------------------------------------
 def creer_folds(train: pd.DataFrame) -> pd.DataFrame:
     """StratifiedKFold(5, shuffle, 42) sur la cible -> DataFrame (id, fold)."""
+    # Stratifié : garde 3,6 % de sinistres dans chaque fold (classe rare -> sinon Gini instable).
+    # Un individu = une ligne (pas de répétition) et pas de dimension temporelle -> pas de GroupKFold.
     skf = StratifiedKFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     fold = np.full(len(train), -1, dtype=int)
     for k, (_, idx_val) in enumerate(skf.split(train, train[TARGET])):
@@ -83,6 +92,7 @@ def creer_folds(train: pd.DataFrame) -> pd.DataFrame:
 
 def charger_folds(train: pd.DataFrame) -> np.ndarray:
     """Lit folds.csv (le crée au premier appel) et renvoie le n° de fold aligné sur train."""
+    # Fichier figé : créé une seule fois puis relu par toutes les expériences (mêmes indices partout).
     if not FOLDS_CSV.exists():
         creer_folds(train).to_csv(FOLDS_CSV, index=False)
         print(f"[folds] créé : {FOLDS_CSV}")

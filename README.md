@@ -11,6 +11,14 @@ Métrique : coefficient de Gini = 2·AUC − 1. Jeu de données inspiré du chal
 - `usine/rapports/` — un rapport par mission (audit, préparation, itérations, revues, analyse)
 - `usine/figures/` — figures d'analyse ; `usine/soutenance/` — plan et questions-réponses
 
+## Soumission finale 2_306
+Modèle **E33f** : moyenne des rangs à poids égaux de 4 modèles — LightGBM (E30, paramètres Jahrer + one-hot),
+XGBoost GPU (E07), CatBoost GPU (E08) et un réseau sur les activations d'un autoencodeur débruiteur (E32c, 3 graines) —
+puis remise à l'échelle des probabilités. **Gini CV 0,28531 ± 0,0074, Gini serveur 0,30079.**
+
+Schéma de la chaîne, rôle de chaque fichier, **commandes exactes dans l'ordre** et fichiers à montrer :
+voir [`usine/src/README_2_306.md`](usine/src/README_2_306.md).
+
 ## Protocole
 Validation croisée stratifiée 5 folds (graine 42, folds figés), Gini par fold, comparaison appariée à la référence,
 une seule modification par expérience, revue indépendante avant chaque soumission.
