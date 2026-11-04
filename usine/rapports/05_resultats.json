@@ -1,0 +1,230 @@
+{
+ "top10_shap": {
+  "ps_car_13": 0.1303,
+  "ps_ind_03": 0.0892,
+  "ps_ind_05_cat": 0.0808,
+  "ps_ind_15": 0.0794,
+  "ps_ind_17_bin": 0.062,
+  "ps_reg_03": 0.058,
+  "ps_car_01_cat": 0.055,
+  "ps_reg_01": 0.0531,
+  "ps_ind_06_bin": 0.0456,
+  "ps_ind_04_cat": 0.0455
+ },
+ "part_groupes_pct": {
+  "calc": 8.1,
+  "reg": 12.5,
+  "car": 35.9,
+  "ind": 43.6
+ },
+ "nb_vars_groupes": {
+  "calc": 20,
+  "ind": 18,
+  "car": 16,
+  "reg": 3
+ },
+ "gini_oof": 0.27856,
+ "auc_oof": 0.63928,
+ "gains_pct_sinistres": {
+  "top5": 12.5,
+  "top10": 21.7,
+  "top20": 36.9,
+  "top30": 48.7,
+  "top50": 68.5
+ },
+ "deciles_taux_pct": {
+  "1": 1.55,
+  "2": 1.94,
+  "3": 2.39,
+  "4": 2.56,
+  "5": 3.05,
+  "6": 3.47,
+  "7": 3.72,
+  "8": 4.32,
+  "9": 5.53,
+  "10": 7.91
+ },
+ "ratio_d10_d1": 5.12,
+ "profils": [
+  {
+   "variable": "ps_car_13",
+   "moy_risque_haut": 1.063,
+   "moy_risque_bas": 0.645,
+   "moy_globale": 0.813,
+   "ecart_standardise": 1.856,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.842,
+   "modalite_dominante_bas": 0.596
+  },
+  {
+   "variable": "ps_ind_03",
+   "moy_risque_haut": 4.975,
+   "moy_risque_bas": 4.196,
+   "moy_globale": 4.424,
+   "ecart_standardise": 0.289,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 6.0,
+   "modalite_dominante_bas": 2.0
+  },
+  {
+   "variable": "ps_ind_05_cat",
+   "moy_risque_haut": 1.441,
+   "moy_risque_bas": 0.051,
+   "moy_globale": 0.405,
+   "ecart_standardise": 1.029,
+   "pct_manquant_haut": 6.221,
+   "pct_manquant_bas": 0.025,
+   "modalite_dominante_haut": 0.0,
+   "modalite_dominante_bas": 0.0
+  },
+  {
+   "variable": "ps_ind_15",
+   "moy_risque_haut": 6.058,
+   "moy_risque_bas": 8.982,
+   "moy_globale": 7.298,
+   "ecart_standardise": -0.826,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 7.0,
+   "modalite_dominante_bas": 11.0
+  },
+  {
+   "variable": "ps_ind_17_bin",
+   "moy_risque_haut": 0.38,
+   "moy_risque_bas": 0.009,
+   "moy_globale": 0.121,
+   "ecart_standardise": 1.137,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.0,
+   "modalite_dominante_bas": 0.0
+  },
+  {
+   "variable": "ps_reg_03",
+   "moy_risque_haut": 0.897,
+   "moy_risque_bas": -0.187,
+   "moy_globale": 0.551,
+   "ecart_standardise": 1.365,
+   "pct_manquant_haut": 9.247,
+   "pct_manquant_bas": 49.786,
+   "modalite_dominante_haut": -1.0,
+   "modalite_dominante_bas": -1.0
+  },
+  {
+   "variable": "ps_car_01_cat",
+   "moy_risque_haut": 8.944,
+   "moy_risque_bas": 7.154,
+   "moy_globale": 8.298,
+   "ecart_standardise": 0.714,
+   "pct_manquant_haut": 0.157,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 11.0,
+   "modalite_dominante_bas": 7.0
+  },
+  {
+   "variable": "ps_reg_01",
+   "moy_risque_haut": 0.682,
+   "moy_risque_bas": 0.376,
+   "moy_globale": 0.611,
+   "ecart_standardise": 1.064,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.9,
+   "modalite_dominante_bas": 0.1
+  },
+  {
+   "variable": "ps_ind_06_bin",
+   "moy_risque_haut": 0.12,
+   "moy_risque_bas": 0.758,
+   "moy_globale": 0.394,
+   "ecart_standardise": -1.308,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.0,
+   "modalite_dominante_bas": 1.0
+  },
+  {
+   "variable": "ps_ind_04_cat",
+   "moy_risque_haut": 0.462,
+   "moy_risque_bas": 0.264,
+   "moy_globale": 0.416,
+   "ecart_standardise": 0.401,
+   "pct_manquant_haut": 0.143,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.0,
+   "modalite_dominante_bas": 0.0
+  },
+  {
+   "variable": "ps_reg_02",
+   "moy_risque_haut": 0.671,
+   "moy_risque_bas": 0.181,
+   "moy_globale": 0.439,
+   "ecart_standardise": 1.211,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 0.0,
+   "modalite_dominante_bas": 0.2
+  },
+  {
+   "variable": "ps_car_03_cat",
+   "moy_risque_haut": 0.007,
+   "moy_risque_bas": -0.782,
+   "moy_globale": -0.505,
+   "ecart_standardise": 1.0,
+   "pct_manquant_haut": 40.293,
+   "pct_manquant_bas": 83.233,
+   "modalite_dominante_haut": 1.0,
+   "modalite_dominante_bas": -1.0
+  },
+  {
+   "variable": "ps_car_15",
+   "moy_risque_haut": 3.35,
+   "moy_risque_bas": 2.514,
+   "moy_globale": 3.066,
+   "ecart_standardise": 1.143,
+   "pct_manquant_haut": 0.0,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 3.606,
+   "modalite_dominante_bas": 2.828
+  },
+  {
+   "variable": "ps_car_09_cat",
+   "moy_risque_haut": 1.403,
+   "moy_risque_bas": 1.248,
+   "moy_globale": 1.327,
+   "ecart_standardise": 0.159,
+   "pct_manquant_haut": 0.352,
+   "pct_manquant_bas": 0.025,
+   "modalite_dominante_haut": 2.0,
+   "modalite_dominante_bas": 2.0
+  },
+  {
+   "variable": "ps_car_07_cat",
+   "moy_risque_haut": 0.618,
+   "moy_risque_bas": 0.998,
+   "moy_globale": 0.91,
+   "ecart_standardise": -1.096,
+   "pct_manquant_haut": 13.647,
+   "pct_manquant_bas": 0.0,
+   "modalite_dominante_haut": 1.0,
+   "modalite_dominante_bas": 1.0
+  }
+ ],
+ "cat_choisies": [
+  "ps_car_11_cat",
+  "ps_ind_05_cat",
+  "ps_car_01_cat",
+  "ps_ind_04_cat"
+ ],
+ "car_11_cat": {
+  "nb_modalites": 104,
+  "nb_moins_500": 0,
+  "nb_moins_100": 0,
+  "min_taux_pct": 2.04,
+  "max_taux_pct": 7.41,
+  "part_pop_modalites_moins_500_pct": 0.0,
+  "ic_median_pt": 0.67
+ }
+}

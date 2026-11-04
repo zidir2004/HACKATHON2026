@@ -1,0 +1,139 @@
+{
+ "n": 446409,
+ "taux": 0.0364486379082859,
+ "groupes": {
+  "ind": {
+   "n_variables": 18,
+   "signal_median": 0.0280230646628658,
+   "signal_max": 0.0890178977078408,
+   "part_shap_pct": 43.61230462453429
+  },
+  "reg": {
+   "n_variables": 3,
+   "signal_median": 0.1065838254381625,
+   "signal_max": 0.1103241827449768,
+   "part_shap_pct": 12.457809155039868
+  },
+  "car": {
+   "n_variables": 16,
+   "signal_median": 0.0757076595358975,
+   "signal_max": 0.1500095838623452,
+   "part_shap_pct": 35.87511283558326
+  },
+  "calc": {
+   "n_variables": 20,
+   "signal_median": 0.00323956942441265,
+   "signal_max": 0.0128304906274912,
+   "part_shap_pct": 8.054773384842582
+  }
+ },
+ "gains": {
+  "E00": {
+   "top10": 0.202630446807203,
+   "top20": 0.3391309692090222,
+   "top30": 0.4605125683731793,
+   "top50": 0.6576117018007498,
+   "gini_oof": 0.2391732467194685,
+   "auc_oof": 0.6195866233597342
+  },
+  "E01": {
+   "top10": 0.2170733206317989,
+   "top20": 0.3687542253088317,
+   "top30": 0.48730870874562104,
+   "top50": 0.6847151373609489,
+   "gini_oof": 0.2785614075509728,
+   "auc_oof": 0.6392807037754864
+  },
+  "E09": {
+   "top10": 0.22051502673468135,
+   "top20": 0.3717657181488538,
+   "top30": 0.4921639727121873,
+   "top50": 0.6843463831356401,
+   "gini_oof": 0.28328039682007233,
+   "auc_oof": 0.6416401984100362
+  }
+ },
+ "deciles": {
+  "taux_d1": 0.014874218767500728,
+  "taux_d10": 0.08037454358101297,
+  "ratio": 5.403614457831325,
+  "taux_d10_E01": 0.07912009139580206,
+  "taux_d1_E01": 0.015456642996348647,
+  "part_sinistres_5_deciles_bas": 0.3156536168643599,
+  "part_sinistres_3_deciles_bas": 0.15758097228197407
+ },
+ "progression": {
+  "E00": [
+   0.23923,
+   0.00656
+  ],
+  "E01": [
+   0.2787,
+   0.00886
+  ],
+  "E02": [
+   0.28088,
+   0.00768
+  ],
+  "E06": [
+   0.271,
+   0.00766
+  ],
+  "E09": [
+   0.28343,
+   0.00758
+  ]
+ },
+ "verdicts": {
+  "E06 vs E02": "rejete",
+  "E19 vs E02": "rejete",
+  "E21 vs E02": "rejete",
+  "E24c vs E08": "rejete",
+  "E03 vs E02": "neutre",
+  "E12 vs E02": "neutre",
+  "E11 vs E02": "neutre",
+  "E26 vs E02": "neutre",
+  "E15 vs E08": "neutre",
+  "E04 vs E02": "neutre",
+  "E20 vs E02": "neutre",
+  "E07 vs E02": "neutre",
+  "E25 vs E02": "neutre",
+  "E24 vs E09": "neutre",
+  "E10 vs E02": "neutre",
+  "E24x vs E07": "neutre",
+  "E22 vs E02": "neutre",
+  "E14 vs E09": "neutre",
+  "E05 vs E02": "neutre",
+  "E17 vs E09": "neutre",
+  "E17a vs E13": "neutre",
+  "E16 vs E07": "neutre",
+  "E28 vs E02m": "neutre",
+  "E08 vs E02": "neutre",
+  "E13 vs E02": "garde",
+  "E27 vs E02": "garde",
+  "E02 vs E01": "neutre",
+  "E09 vs E02": "garde"
+ },
+ "segments": {
+  "50 % les moins risqués": {
+   "n": 223205,
+   "taux": 0.023010237225868597,
+   "part_sinistres": 0.3156536168643599
+  },
+  "30 % intermédiaires": {
+   "n": 133922,
+   "taux": 0.03797733008766297,
+   "part_sinistres": 0.3125806649867863
+  },
+  "10 % suivants": {
+   "n": 44641,
+   "taux": 0.05512869335364351,
+   "part_sinistres": 0.15125069141417247
+  },
+  "10 % les plus risqués": {
+   "n": 44641,
+   "taux": 0.08037454358101297,
+   "part_sinistres": 0.22051502673468135
+  }
+ }
+}

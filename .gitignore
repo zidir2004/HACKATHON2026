@@ -1,0 +1,14 @@
+# Données du sujet (non publiées : fournies par l'enseignant, volumineuses)
+train.csv
+test.csv
+submission_example.csv
+Slides_Hackathon.pdf
+# Données dérivées et prédictions (volumineuses, reproductibles par les scripts)
+usine/data/
+usine/experiences/oof/
+usine/submissions/
+# Fichiers techniques du lanceur
+usine/logs/
+usine/queue/
+*.bak
+__pycache__/
