@@ -103,6 +103,20 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 | E85 | LightGBM refit 1260 arbres (1050 × 1,2 ; le reviewer a mesuré 1400 > optimum) | n/a | Spearman vs E80 0,997 |
 | E86 | E85 + E81 + E82 + E73 (3 réseaux) → **2_309** | n/a | format vérifié, Spearman 0,998 vs 2_306 |
 
+Serveur : 2_308 = 0,30001, 2_309 = 0,29984 (15h12) → pas mieux que 2_306 (0,30079), écarts dans le bruit.
+
+### Idée du professeur (15h15) : choisir le modèle selon le profil de l'assuré
+| Exp | Méthode (évaluation emboîtée sur les folds figés) | Gini CV | Δ vs E33f | Verdict |
+|---|---|---|---|---|
+| E90 | Stacking : logistique sur les rangs des 4 modèles | 0,28531 | 0,0000 (1/5) | neutre : poids appris ≈ égaux (0,48/0,42/0,42/0,44) |
+| E91 | Logistique rangs × variables de profil | 0,28287 | −0,0024 (0/5) | rejeté |
+| E92 | LightGBM méta-modèle régularisé | 0,28289 | −0,0024 (0/5) | rejeté |
+| E95–E97 | Meilleur modèle par segment (manquants, ps_car_13, ps_ind_05_cat), mélange inclus parmi les candidats | 0,28531 | 0,0000 | neutre : le mélange gagne dans tous les segments |
+| E95–E97 bis | Meilleur modèle seul par segment (sans le mélange) | 0,2809–0,2813 | −0,004 | rejeté |
+| E98 | Moyenne des 2 meilleurs par segment | 0,28428 | −0,0010 (0/5) | rejeté |
+
+**Lecture** : la moyenne à poids égaux est déjà le meilleur choix. Un spécialiste par profil perd, car chaque modèle seul est plus faible que leur moyenne dans tous les segments. Soumissions produites pour test : 2_310 (Spearman 1,0000 vs 2_306) et 2_311 (même classement que 2_306).
+
 ## 6. Revues du reviewer
 - 10h14 — Revue E02–E16 / 2_303.csv (`rapports/91_reviewer_revue_E09.md`) : **déposable**. Pas de fuite (E05 bien en folds avec K-fold interne ; mêmes folds pour les 3 membres). Gain du mélange réel sur la graine 42 (5/5). Réserves : robustesse sur une autre graine en cours (job `91_revue_E09_s7`) ; gain E02 non significatif (à présenter comme simplification).
 - 10h03 — Lead-tech : le mélange sortait des rangs (moyenne 0,5) ; ajout de `src/07_rangs_vers_proba.py` qui conserve l'ordre exact (même Gini) et donne des valeurs de probabilité (moyenne 0,0364), pour respecter « prédiction en probabilité ».
@@ -166,3 +180,5 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 14h33 — PowerPoint de soutenance livré (`soutenance/Hackathon_Groupe2_2_306.pptx`). Choix utilisateur : rester discret sur Kaggle ; le lead-tech a conservé une mention de source (slide 9) par honnêteté.
 - 14h35 — Décision utilisateur : réentraîner sur 100 % + combiner avec le 3ᵉ autoencodeur.
 - 14h40 — 2_308 prêt ; 14h55 revue : déposable. 14h56 — 2_309 prêt, format vérifié.
+- 15h12 — 2_308 = 0,30001, 2_309 = 0,29984 au serveur.
+- 15h15 — Piste du professeur : stacking (E90–E92) et sélection par segment (E95–E98) en parallèle. 15h30 : tous neutres ou rejetés ; 2_310 et 2_311 produites (≈ 2_306).
