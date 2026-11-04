@@ -182,3 +182,4 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 14h40 — 2_308 prêt ; 14h55 revue : déposable. 14h56 — 2_309 prêt, format vérifié.
 - 15h12 — 2_308 = 0,30001, 2_309 = 0,29984 au serveur.
 - 15h15 — Piste du professeur : stacking (E90–E92) et sélection par segment (E95–E98) en parallèle. 15h30 : tous neutres ou rejetés ; 2_310 et 2_311 produites (≈ 2_306).
+- 15h45 — Modèle final confirmé : 2_306. PowerPoint mis à jour : noms (ZIDOUR Idir, IMLOUL Mehdi, MEHIDI Siham, BOUZID Ouissam, BOUSSADIA Yanis), rôles (Ouissam données, Mehdi protocole, Idir modèles et piste du prof, Yanis code, Siham analyse métier), slide 11 sur la piste du professeur. Figure 12 refaite et relue (20b_figure_segments.py).
