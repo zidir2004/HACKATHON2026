@@ -83,3 +83,35 @@ le nombre d'époques de l'original (1000 à batch 128) n'est pas le facteur limi
 Temps : DAE 38 min, 3 réseaux × ~2 min, mélanges < 1 min.
 **Prochaine idée** (non recommandée avant le gel) : plus de diversité plutôt que plus d'époques, par ex. un 2e DAE de graine différente
 ou un swap noise différent (10 % / 20 %), à mélanger avec E32c ; gain attendu faible (≤ 0,0005).
+
+## 8. Diversité de réseaux (E50–E59, 12h57–13h48 Paris)
+**Hypothèse** : comme Jahrer (5 réseaux différents), plusieurs réseaux de nature différente se compensent mieux qu'un seul.
+**Ce qui a été fait** (protocole réseau inchangé : 6 époques fixes, moyenne des prédictions des époques, 3 graines, folds figés) :
+- **E50** = 2ᵉ autoencodeur depuis zéro, **swap noise 7 %** (modèle n°3 de Jahrer), même architecture, Adam lr 1e-3, batch 512,
+  534 époques en 28 min → `usine/data/dae/dae_swap07.pt` (dae.pt et dae_E33f_596ep.pt intacts). Reconstruction propre 0,00013
+  (contre 0,00042 à 15 % : tâche plus facile). Pas de ligne au registre (pas de prédiction) ; il sert à E51.
+- **E51c** = réseau sur les activations de E50, 3 graines : **0,27699 ± 0,00736**, **meilleur réseau du projet** (vs E32c +0,00182, 4/5 → garde).
+- **E52** = MLP 1000-1000 directement sur les entrées RankGauss + one-hot, sans autoencodeur, 3 graines : 0,26489 ± 0,00793 (vs E32c −0,0103, 0/5).
+  Note : à 6 époques il n'a pas fini d'apprendre (la dernière époque bat la moyenne), mais il est surtout nettement plus faible.
+- Corrélations de rang OOF : E32c/E51c 0,967 ; réseaux vs E09 0,92–0,93 ; E52 vs réseaux 0,92.
+
+| Exp | Mélange (rangs, poids égaux) | Gini CV | vs E33f (apparié) | Verdict |
+|---|---|---|---|---|
+| E53 | E30+E07+E08+E32c+E52 | 0,28386 | −0,00145 (0/5) | rejete |
+| E54 | E30+E07+E08+moy(E32c,E52) | 0,28455 | −0,00076 (0/5) | rejete |
+| E55 | E30+E07+E08+E32c+E51c (5 membres) | 0,28545 | +0,00015 (3/5) | neutre |
+| **E56** | **E30+E07+E08+moy(E32c,E51c)** (réseaux = 1/4) | **0,28559 ± 0,00732** | **+0,00029 (4/5, seuil 2se ≈ 0,00020)** | **garde** |
+| E57 | E30+E07+E08+E32c+E51c+E52 (6 membres) | 0,28408 | −0,00123 (0/5) | rejete |
+| E58 | E30+E07+E08+moy(E32c,E51c,E52) | 0,28503 | −0,00028 (1/5) | neutre |
+| E59 | E30+E07+E08+E51c (E51c remplace E32c) | 0,28561 | +0,00030 (4/5, Δ/fold plus dispersés) | neutre |
+
+**Lectures**
+- Les réseaux doivent garder **1/4 du poids au total** : dès qu'ils dépassent ce poids (E53, E55, E57), le mélange recule ou stagne.
+- Le MLP sans autoencodeur (E52) dégrade tout mélange : la représentation DAE est bien ce qui rend le réseau utile.
+- Gain de E56 réel mais **petit** (+0,0003, 4/5) : à présenter comme un affinement de E33f, pas comme un saut. Contre E09, E56 fait ≈ +0,0022.
+- Biais résiduel : le choix « réseaux = 1/4 » s'appuie sur les essais E33b/E53/E55 (plusieurs mélanges essayés, faible risque de sur-sélection).
+
+**Soumission** : `usine/submissions/2_307.csv` = E56 remis en proba (`07_rangs_vers_proba.py`, valeurs = moyenne des probas E30, E07, E08, E32b, E51_g0 ;
+Spearman sortie/mélange 1,000000). Auto-contrôle : 148 803 lignes, sans en-tête, ordre test.csv, 0 NaN, LF, moyenne 0,0369. **Non déclarée déposable.**
+Temps : DAE 28 min, 6 réseaux × ~2,5 min, mélanges ~1 min (E57 ~4 min à cause de la grille de poids informative à 6 membres).
+Code : `12_dae.py` (relit X_all.npy existant), `13_nn_dae.py`, `17_comparaisons_diversite.py` ; aucun modèle E60+ de la piste A au registre au moment des mélanges.

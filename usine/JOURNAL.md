@@ -1,10 +1,10 @@
 # Journal — Hackathon M2 DS4SC : prédiction de sinistres (Gini)
 
 ## 0. Résumé (toujours à jour)
-- Meilleur score CV : **0,2853 ± 0,0074** (E33f) — à annoncer ~0,284–0,285 — score serveur : —
-- Modèle actuel : E33f = rangs égaux de 4 modèles : LightGBM Jahrer + one-hot (E30), XGBoost GPU (E07), CatBoost GPU (E08), réseau de neurones sur autoencodeur débruiteur (E32c, 3 graines)
-- Livrable valide en place : **`submissions/2_306.csv`** (revu, déposable, à privilégier) ; replis : 2_305 (E34), 2_303 (E09)
-- Prochaine piste : carte blanche jusqu'au gel de 15h — 2e autoencodeur (bruit 7 %), MLP direct, variantes LightGBM pour la diversité
+- Meilleur score CV : **0,2856 ± 0,0073** (E56) — à annoncer ≈ 0,285 — score serveur : —
+- Modèle actuel : E56 = rangs égaux de E30 (LightGBM Jahrer + one-hot), E07 (XGBoost GPU), E08 (CatBoost GPU), moyenne(E32c, E51c) (2 réseaux sur 2 autoencodeurs débruiteurs, bruit 15 % et 7 %)
+- Livrable valide en place : **`submissions/2_307.csv`** (revue finale : à déposer en dernier) ; repli 2_306
+- Prochaine piste : point de contrôle n°3 (choix final), gel 15h, mise à jour des figures de soutenance
 - Échéance : **16h00 (Paris) fermeture des soumissions** ; gel à 15h ; check-ups 11h et 14h
 
 ## 1. Compréhension du sujet
@@ -84,6 +84,12 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 | **E33f** | **Mélange E30 + E07 + E08 + E32c** | **0,2853 ± 0,0074** | **+0,0019 vs E09, +0,0011 vs E34 (5/5)** | **garde → 2_306** |
 | E40/E41 | DAE ré-entraîné 38 min de plus (1320 époques) | 0,2851 | −0,0002 vs E33f (1/5) | rejeté (DAE déjà convergé) |
 
+| E50/E51c | 2ᵉ DAE (swap noise 7 %, 28 min GPU) + réseau, 3 graines | 0,2770 (seul) | +0,0018 vs E32c (4/5) | garde (meilleur réseau) |
+| E52 | MLP direct sans DAE, 3 graines | 0,2649 | fait baisser les mélanges (−0,0008 à −0,0015) | rejeté |
+| **E56** | **E30 + E07 + E08 + moyenne(E32c, E51c)** (réseaux = 1/4 du poids) | **0,2856 ± 0,0073** | **+0,0003 vs E33f (4/5)**, bootstrap 90 % [+0,00005 ; +0,0005] | **garde → 2_307** |
+| E55/E59 | E51c en 5ᵉ membre / à la place de E32c | ≈0,2855 | neutre | non retenus |
+| E60–E67 | LightGBM DART, extra_trees, logistique riche, ExtraTrees sklearn ajoutés au mélange | 0,253–0,279 seuls | −0,0001 à −0,0023 | rejetés (trop faibles ou redondants) |
+
 **Lecture** : un modèle *plus faible seul* (réseau 0,275) mais *différent* (il apprend une autre représentation des données) améliore le mélange : c'est la diversité qui paie, pas la force individuelle. Incident : collision d'identifiants E32/E33 entre les deux pistes parallèles → lignes de la piste A renommées E32A/E33A ; le reviewer a vérifié qu'aucun livrable n'utilise un fichier écrasé.
 
 ## 6. Revues du reviewer
@@ -93,6 +99,8 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 
 - 12h45 — Revue pistes A/B (`rapports/92_reviewer_revue_pistesAB.md`) : **2_305 et 2_306 déposables, 2_306 à privilégier**. Gain E33f réel (bootstrap 90 % : +0,0004 à +0,0016 vs E34). DAE sur train+test sans cible : pas de fuite, pas d'optimisme. Annoncer ~0,284–0,285 (correction de sélection).
 
+- 14h10 — **Revue finale** (`rapports/93_reviewer_revue_finale.md`) : 2_307 déposable, **à déposer en dernier** ; 2_306 repli. Gain E56 petit mais stable sur les 3 graines du réseau. 2_306 et 2_307 corrélés à 0,9995 sur le test. Chaîne reproductible (commandes §5 du rapport). Ne pas déposer `_check_2_305_regen.csv`.
+
 ## 7. Livrables / soumissions
 | Heure | Expérience | Gini CV | Score serveur | Fichier |
 |---|---|---|---|---|
@@ -100,6 +108,7 @@ Source fournie par l'utilisateur : blend 1 LightGBM + 5 réseaux sur autoencodeu
 | 10h14 | E09 | 0,2834 | à venir | `submissions/2_303.csv` |
 | 11h40 | E34 | 0,2843 | — | `submissions/2_305.csv` |
 | 12h45 | E33f | 0,2853 | à venir | `submissions/2_306.csv` |
+| 14h10 | E56 | 0,2856 | à venir | `submissions/2_307.csv` |
 
 - Feature engineering v4 (10h20, `rapports/07_data-cleaner_features_v4.md`) : v1 + 12 variables non supervisées (comptages de catégorielles, interactions ps_reg_01×ps_reg_02, ps_car_13×ps_reg_03, ps_car_13/ps_car_12, ps_ind_03 & ps_ind_15, entiers reconstruits, somme des binaires, comptage du croisement ps_ind_05_cat×ps_car_04_cat). Plus prometteuse : `ind05_x_car04_count` (Gini univarié 0,124 vs 0,043/0,075 pour ses sources). À tester (E19+).
 
@@ -134,3 +143,7 @@ Rapport `rapports/05_analyste_E01.md`, figures `figures/05_*.png`.
 - 12h05 — E33f = 0,2853. Collision d'IDs corrigée (E32A/E33A).
 - 12h45 — Revue : 2_306 déposable. 12h55 — reprise DAE rejetée (E41).
 - 12h57 — L'utilisateur donne carte blanche pour maximiser le score jusqu'au gel.
+- 12h58 — Carte blanche : piste GPU (E50–E59) et piste CPU (E60–E69) en parallèle, plages d'IDs réservées pour éviter une nouvelle collision.
+- 13h48 — E56 (2 réseaux DAE) = 0,2856. Modèles CPU additionnels tous rejetés.
+- 14h04 — Vérification à la demande de l'utilisateur : la RTX 4060 est bien utilisée (torch cuda, 3,1 s/époque DAE) ; au repos depuis 13h48.
+- 14h10 — Revue finale : 2_307 recommandé. Point de contrôle n°3 présenté.

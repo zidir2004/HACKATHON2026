@@ -177,7 +177,9 @@ if __name__ == "__main__":
     ap.add_argument("--reprise", default="", help="checkpoint de départ dans usine/data/dae (ex. dae.pt)")
     ap.add_argument("--sortie", default="dae.pt", help="nom du checkpoint écrit (ne pas écraser dae.pt en reprise)")
     a = ap.parse_args()
-    assert not (a.reprise and a.sortie == a.reprise), "la reprise doit écrire sous un autre nom"
+    assert a.sortie not in ("dae_E33f_596ep.pt",) and not (a.reprise and a.sortie == a.reprise), "la reprise doit écrire sous un autre nom"
     # En reprise, on relit les entrées déjà préparées (identiques) pour garantir le même ordre de colonnes
-    X = np.load(DAE_DIR / "X_all.npy") if a.reprise else preparer_entrees()
+    # Les entrées (déterministes) déjà préparées sont relues : un 2e DAE ou une reprise utilise EXACTEMENT
+    # les mêmes colonnes que le DAE d'origine (et 13_nn_dae.py lit ce même fichier).
+    X = np.load(DAE_DIR / "X_all.npy") if (DAE_DIR / "X_all.npy").exists() else preparer_entrees()
     entrainer(X, a)

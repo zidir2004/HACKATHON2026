@@ -140,6 +140,25 @@ CONFIGS.update({
 })
 
 
+# --- Diversité CPU (mission 13) : modèles « différents » sur v1 + one-hot (comme E30b), arbres fixes. ---
+CONFIGS.update({
+    "E60": dict(version="v1", ref="E30b", modele="lightgbm", onehot="ajoute", early_stop=None, n_max=600,
+                params=dict(LGB_JAHRER, boosting="dart", learning_rate=0.05, drop_rate=0.1, skip_drop=0.5,
+                            max_drop=50),
+                changement="LightGBM DART (lr 0.05, 600 arbres fixes, drop 0.1) sur v1 + one-hot (params Jahrer sinon)"),
+    "E61": dict(version="v1", ref="E30b", modele="lightgbm", onehot="ajoute", early_stop=None, n_max=1400,
+                params=dict(LGB_JAHRER, extra_trees=True),
+                changement="LightGBM extra_trees=True (seuils tirés au hasard), 1400 arbres fixes, v1 + one-hot"),
+    "E62": dict(version="v1", ref="E30b", modele="logreg_riche", onehot="remplace",
+                params=dict(C=0.05, max_iter=2000),
+                changement="régression logistique L2 : one-hot de toutes les _cat + quantiles->gaussienne (RankGauss) des continues, appris dans le fold"),
+    "E63": dict(version="v1", ref="E30b", modele="extratrees", onehot="ajoute",
+                params=dict(n_estimators=250, min_samples_leaf=150, max_features=0.3, n_jobs=8,
+                            random_state=U.SEED),
+                changement="ExtraTreesClassifier sklearn (250 arbres, min_samples_leaf 150, max_features 0.3) sur v1 + one-hot"),
+})
+
+
 def ajouter_configs_v4(familles, exp_lgb="E23", exp_xgb="E24x", exp_cb="E24c"):
     """Union de familles retenues : LightGBM (ref E02) + XGBoost/CatBoost GPU (ref E07/E08)."""
     ex, lib = v4_avec(familles), "+".join(familles)
@@ -287,7 +306,27 @@ def ajuster_logreg(cfg, Xtr, ytr, Xva, yva, Xte, cats):
     return model.predict_proba(Xva)[:, 1], model.predict_proba(Xte)[:, 1], {"n_arbres": "n/a"}
 
 
-MODELES = {"lightgbm": ajuster_lightgbm, "xgboost": ajuster_xgboost,
+def ajuster_logreg_riche(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    """Indicatrices (one-hot, binaires) laissées telles quelles ; colonnes continues/ordinales (> 2 valeurs
+    distinctes, hors indicatrices _oh) transformées en quantiles -> loi normale, appris sur le fold d'entraînement."""
+    from sklearn.compose import ColumnTransformer
+    from sklearn.preprocessing import QuantileTransformer
+    cont = [c for c in Xtr.columns if "_oh" not in c and Xtr[c].nunique() > 2]
+    pre = ColumnTransformer([("rg", QuantileTransformer(n_quantiles=1000, output_distribution="normal",
+                                                        subsample=200000, random_state=U.SEED), cont)],
+                            remainder="passthrough")
+    model = make_pipeline(pre, LogisticRegression(**cfg["params"]))
+    model.fit(Xtr, ytr)
+    return model.predict_proba(Xva)[:, 1], model.predict_proba(Xte)[:, 1], {"n_arbres": "n/a"}
+
+
+def ajuster_extratrees(cfg, Xtr, ytr, Xva, yva, Xte, cats):
+    from sklearn.ensemble import ExtraTreesClassifier
+    model = ExtraTreesClassifier(**cfg["params"]).fit(Xtr, ytr)
+    return model.predict_proba(Xva)[:, 1], model.predict_proba(Xte)[:, 1], {"n_arbres": cfg["params"]["n_estimators"]}
+
+
+MODELES = {"logreg_riche": ajuster_logreg_riche, "extratrees": ajuster_extratrees, "lightgbm": ajuster_lightgbm, "xgboost": ajuster_xgboost,
            "catboost": ajuster_catboost, "logreg": ajuster_logreg}
 
 
